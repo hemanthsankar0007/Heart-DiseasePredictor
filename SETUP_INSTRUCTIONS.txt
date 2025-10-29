@@ -1,0 +1,83 @@
+HEART DISEASE PREDICTION APP - COMPLETE SETUP GUIDE
+===================================================
+
+REQUIREMENTS:
+- Windows 10/11
+- Internet connection (for initial setup)
+
+STEP 1: INSTALL REQUIREMENTS
+============================
+1. Install Python 3.8+:
+   - Download from: https://python.org/downloads
+   - During installation: CHECK "Add Python to PATH"
+
+2. Install Node.js 16+:
+   - Download from: https://nodejs.org
+   - Use default installation settings
+
+3. Restart your computer after installations
+
+STEP 2: SETUP THE APPLICATION
+=============================
+1. Extract the transfer-package folder to your Desktop
+
+2. AUTOMATIC SETUP:
+   - Double-click "COMPLETE_SETUP.bat"
+   - Wait for setup to complete (5-10 minutes)
+
+3. MANUAL SETUP (if automatic fails):
+   
+   BACKEND SETUP:
+   - Open Command Prompt as Administrator
+   - cd Desktop\transfer-package\backend
+   - python -m venv venv
+   - venv\Scripts\activate
+   - pip install -r requirements.txt
+
+   FRONTEND SETUP:
+   - Open NEW Command Prompt
+   - cd Desktop\transfer-package\frontend
+   - npm install
+
+STEP 3: RUN THE APPLICATION
+===========================
+EASY WAY:
+- Double-click "START_APP.bat"
+
+MANUAL WAY:
+1. Backend Terminal:
+   - cd Desktop\transfer-package\backend
+   - venv\Scripts\activate
+   - python main.py
+
+2. Frontend Terminal (NEW terminal):
+   - cd Desktop\transfer-package\frontend
+   - npm run dev
+
+3. Open browser: http://localhost:5173
+
+STEP 4: TEST THE APP
+====================
+1. Fill out the heart disease prediction form
+2. Click "INITIATE ANALYSIS"
+3. Should get prediction results with risk level!
+
+TROUBLESHOOTING:
+===============
+- Python not found: Reinstall Python with "Add to PATH" checked
+- Node not found: Reinstall Node.js
+- Port 8000 busy: Kill other apps using port 8000
+- Model not loading: Ensure xgb_heart_model.pkl is in backend folder
+- Frontend won't load: Clear browser cache, try incognito mode
+
+CONTACT:
+========
+If you need help, message me with the error details!
+
+APP FEATURES:
+=============
+- Gaming-style UI with cyberpunk theme
+- 13 medical parameters for heart disease prediction
+- Real-time AI predictions using XGBoost model
+- Progressive form with manual navigation
+- Professional medical disclaimers
