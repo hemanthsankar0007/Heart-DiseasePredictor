@@ -3,5 +3,8 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: "./",   // <--- THIS FIXES THE WHITE SCREEN
+  base: "./",
+  build: {
+    outDir: "dist",
+  }
 })
