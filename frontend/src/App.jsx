@@ -15,9 +15,11 @@ function App() {
   const [showMobileInfo, setShowMobileInfo] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const activeFieldRef = useRef(null);
+  const formRef = useRef(null);
 
   // Field order for progressive flow
   const fieldOrder = ['age', 'sex', 'cp', 'trestbps', 'chol', 'fbs', 'restecg', 'thalch', 'exang', 'oldpeak', 'slope', 'ca', 'thal'];
+  const totalFields = fieldOrder.length;
 
   // Gaming-style field information
   const fieldInfo = {
@@ -149,7 +151,7 @@ function App() {
       { value: "0", label: "Typical Angina" },
       { value: "1", label: "Atypical Angina" },
       { value: "2", label: "Non-Anginal Pain" },
-      { value: "3", label: "Asymptomatic" }
+      { value: "3", label: "No Chest Pain" }
     ],
     fbs: [
       { value: "0", label: "Normal (≤ 120 mg/dl)" },
@@ -192,7 +194,24 @@ function App() {
   };
 
   // Calculate completion percentage
-  const completionPercentage = (completedFields.size / Object.keys(patientData).length) * 100;
+  const completionPercentage = (completedFields.size / totalFields) * 100;
+
+  const formatPercentage = (value) => {
+    if (value === null || value === undefined || isNaN(value)) {
+      return "0.00";
+    }
+    return Number(value).toFixed(2);
+  };
+
+  const handleScrollToForm = () => {
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const focusActiveField = () => {
+    if (activeFieldRef.current) {
+      activeFieldRef.current.focus();
+    }
+  };
 
   useEffect(() => {
     // Update completed fields
@@ -233,12 +252,23 @@ function App() {
     }
   };
 
-  const updateField = (e) => {
-    const { name, value } = e.target;
+  const setFieldValue = (name, value) => {
     const newPatientData = { ...patientData, [name]: value };
     setPatientData(newPatientData);
     setActiveField(name);
     setError(null);
+  };
+
+  const adjustFieldValue = (name, delta) => {
+    const currentValue = patientData[name] ? parseFloat(patientData[name]) : 0;
+    if (isNaN(currentValue)) return;
+    const updatedValue = (currentValue + delta).toFixed(1).replace(/\.0$/, '');
+    setFieldValue(name, updatedValue);
+  };
+
+  const updateField = (e) => {
+    const { name, value } = e.target;
+    setFieldValue(name, value);
     
     // No auto-progression - user must click Next button
   };
@@ -315,6 +345,10 @@ function App() {
     const isActive = activeField === field;
     const isSelect = fieldOptions[field];
     const constraints = fieldConstraints[field];
+    const numericStep = constraints?.step ? Number(constraints.step) : 1;
+    const midpoint = constraints?.min !== undefined && constraints?.max !== undefined
+      ? ((constraints.min + constraints.max) / 2).toFixed(1).replace(/\.0$/, '')
+      : null;
 
     const fieldClass = `
       w-full px-4 py-3 bg-gray-900/50 border-2 rounded-xl transition-all duration-300 backdrop-blur-sm
@@ -347,6 +381,27 @@ function App() {
               </option>
             ))}
           </select>
+
+          <div className="flex flex-wrap gap-2 mt-4">
+            {fieldOptions[field].map(option => {
+              const isChosen = patientData[field] === option.value;
+              return (
+                <button
+                  key={`chip-${option.value}`}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFieldValue(field, option.value);
+                  }}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-200 ${
+                    isChosen ? 'bg-cyan-500 text-black border-transparent' : 'bg-gray-900/60 text-gray-300 border-gray-600 hover:border-cyan-400'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
           
           {/* Mobile/Responsive Info Panel */}
           {isActive && showMobileInfo && (
@@ -408,6 +463,67 @@ function App() {
           className={fieldClass}
           placeholder={`Enter ${fieldInfo[field].title.toLowerCase()}`}
         />
+
+        {constraints && (
+          <div className="flex flex-wrap gap-2 mt-4 text-xs font-semibold text-gray-200">
+            {constraints.min !== undefined && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFieldValue(field, String(constraints.min));
+                }}
+                className="px-3 py-1 rounded-full bg-white/10 border border-white/20 hover:bg-white/20 transition"
+              >
+                Min {constraints.min}
+              </button>
+            )}
+            {midpoint && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFieldValue(field, midpoint);
+                }}
+                className="px-3 py-1 rounded-full bg-white/10 border border-white/20 hover:bg-white/20 transition"
+              >
+                Median {midpoint}
+              </button>
+            )}
+            {constraints.max !== undefined && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFieldValue(field, String(constraints.max));
+                }}
+                className="px-3 py-1 rounded-full bg-white/10 border border-white/20 hover:bg-white/20 transition"
+              >
+                Max {constraints.max}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                adjustFieldValue(field, -numericStep);
+              }}
+              className="px-3 py-1 rounded-full bg-gradient-to-r from-red-500/30 to-red-600/30 border border-red-400/40 hover:from-red-500/50 hover:to-red-600/50"
+            >
+              -{numericStep}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                adjustFieldValue(field, numericStep);
+              }}
+              className="px-3 py-1 rounded-full bg-gradient-to-r from-green-500/30 to-green-600/30 border border-green-400/40 hover:from-green-500/50 hover:to-green-600/50"
+            >
+              +{numericStep}
+            </button>
+          </div>
+        )}
         
         {/* Mobile/Responsive Info Panel */}
         {isActive && showMobileInfo && (
@@ -455,10 +571,73 @@ function App() {
     );
   };
 
+  const quickStats = [
+    {
+      title: "Fields Completed",
+      value: `${completedFields.size}/${totalFields}`,
+      sub: completionPercentage === 0 ? "Awaiting input" : `${Math.round(completionPercentage)}% ready`,
+      accent: "from-cyan-500/30 to-blue-500/30",
+    },
+    {
+      title: "AI Model Accuracy",
+      value: "85.4%",
+      sub: "Trained on Cleveland dataset",
+      accent: "from-purple-500/30 to-pink-500/30",
+    },
+    {
+      title: "Review Reminder",
+      value: "30 days",
+      sub: "Recommended follow-up window",
+      accent: "from-amber-500/30 to-orange-500/30",
+    },
+    {
+      title: "Data Security",
+      value: "AES-256",
+      sub: "In-transit encryption",
+      accent: "from-emerald-500/30 to-teal-500/30",
+    },
+  ];
+
+  const aiInsightStats = [
+    {
+      title: "AI Confidence",
+      value: prediction ? `${formatPercentage(prediction.confidence)}%` : "Pending",
+      sub: prediction ? "Based on provided biomarkers" : "Fill inputs to unlock",
+      badge: "🔐",
+    },
+    {
+      title: "Risk Signal",
+      value: prediction ? prediction.risk_level : "Unknown",
+      sub: prediction ? "Personalized severity grade" : "Awaiting analysis",
+      badge: "📡",
+    },
+    {
+      title: "Recommendation",
+      value: prediction?.recommendation ? `${prediction.recommendation.split('.')[0]}.` : "Guidance appears here",
+      sub: "AI-generated advisory",
+      badge: "🩺",
+    },
+  ];
+
+  const accentOrbs = [
+    { className: "glow-orb top-12 -right-10 w-80 h-80 bg-cyan-500/20" },
+    { className: "glow-orb -top-24 left-10 w-64 h-64 bg-purple-500/20" },
+    { className: "glow-orb bottom-10 right-20 w-56 h-56 bg-pink-500/10" },
+  ];
+
+  const currentFieldData = getCurrentField();
+  const currentField = currentFieldData.field;
+  const currentFieldIndex = currentFieldData.index;
+  const currentFieldInfo = fieldInfo[currentField] || fieldInfo[fieldOrder[0]];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 relative overflow-hidden">
       {/* Gaming-style background effects */}
       <div className="fixed inset-0 bg-gradient-to-br from-blue-900/20 via-gray-900 to-black"></div>
+
+      {accentOrbs.map((orb, index) => (
+        <div key={`orb-${index}`} className={`${orb.className} blur-3xl opacity-70`} aria-hidden="true"></div>
+      ))}
       
       {/* Animated particles */}
       <Particles />
@@ -473,15 +652,47 @@ function App() {
       </div>
 
       <div className="relative z-10 min-h-screen p-4">
+        {/* Back button - top left */}
+        {prediction && (
+          <button
+            onClick={resetForm}
+            className="fixed top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/40 hover:to-blue-500/40 border border-cyan-500/50 rounded-xl text-white transition-all duration-300 backdrop-blur-sm shadow-lg hover:shadow-cyan-500/50 hover:scale-105"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span className="font-semibold">Back</span>
+          </button>
+        )}
+
         {/* Gaming-style header */}
-        <div className="text-center mb-8 pt-8">
-          <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full mb-6 shadow-2xl shadow-cyan-500/50 animate-pulse">
+        <div className="text-center mb-10 pt-8">
+          <button
+            onClick={resetForm}
+            className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full mb-6 shadow-2xl shadow-cyan-500/50 animate-pulse hover:scale-110 transition-transform duration-300 cursor-pointer"
+          >
             <span className="text-4xl">❤️</span>
-          </div>
+          </button>
           <h1 className="text-6xl font-bold bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent mb-4">
             CARDIAC RISK ANALYZER
           </h1>
           <p className="text-xl text-gray-300 mb-4">Advanced AI-Powered Heart Disease Prediction System</p>
+          <p className="text-sm uppercase tracking-[0.4em] text-cyan-200/70 mb-6">XGBoost Engine • Real-time Biomarker Scoring • Secure Insights</p>
+
+          <div className="flex flex-col sm:flex-row justify-center gap-4 mb-6">
+            <button
+              onClick={handleScrollToForm}
+              className="px-8 py-4 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 rounded-2xl text-white font-semibold shadow-2xl shadow-cyan-500/40 hover:translate-y-[-2px] transition-all duration-300"
+            >
+              Start / Continue Input
+            </button>
+            <button
+              onClick={resetForm}
+              className="px-8 py-4 bg-white/10 border border-white/20 rounded-2xl text-white font-semibold backdrop-blur hover:bg-white/20 transition-all duration-300"
+            >
+              Reset Dashboard
+            </button>
+          </div>
           
           {/* Gaming-style progress bar */}
           <div className="max-w-md mx-auto mb-6">
@@ -498,6 +709,50 @@ function App() {
               </div>
             </div>
           </div>
+
+          {/* Clickable step chips */}
+          <div className="max-w-5xl mx-auto mb-10">
+            <div className="flex gap-3 overflow-x-auto py-3 px-3 bg-white/5 border border-white/10 rounded-3xl backdrop-blur scrollhide">
+              {fieldOrder.map((field, index) => {
+                const isActive = field === activeField;
+                const isDone = completedFields.has(field);
+                return (
+                  <button
+                    key={field}
+                    onClick={() => navigateToStep(index)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-semibold transition-all duration-300 border ${
+                      isActive
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-black border-transparent shadow-lg shadow-cyan-500/40'
+                        : 'bg-gray-900/60 text-gray-300 border-white/10 hover:text-white hover:border-cyan-400/40'
+                    } ${isDone && !isActive ? 'opacity-80' : ''}`}
+                    title={`Jump to ${fieldInfo[field].title}`}
+                  >
+                    <span className="text-lg">{fieldInfo[field].icon}</span>
+                    <span>{index + 1}</span>
+                    {isDone && <span className="text-xs">✅</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-6xl mx-auto mb-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+            {quickStats.map((stat, index) => (
+              <div
+                key={stat.title}
+                className={`neon-card bg-white/5 border border-white/10 rounded-3xl p-5 relative overflow-hidden backdrop-blur ${index % 2 === 0 ? 'animate-floatSlow' : 'animate-floatSlow-delayed'}`}
+              >
+                <div className={`absolute inset-0 bg-gradient-to-br ${stat.accent} opacity-20`}></div>
+                <div className="relative">
+                  <p className="text-sm uppercase tracking-widest text-gray-300/80 mb-2">{stat.title}</p>
+                  <p className="text-3xl font-bold text-white mb-1">{stat.value}</p>
+                  <p className="text-cyan-100 text-sm">{stat.sub}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Main content area */}
@@ -507,13 +762,19 @@ function App() {
             <div className="mb-8 p-8 bg-gradient-to-r from-gray-900/90 to-black/90 backdrop-blur-xl rounded-3xl border border-cyan-500/30 shadow-2xl shadow-cyan-500/20 animate-slideIn">
               <div className="text-center">
                 <h2 className="text-4xl font-bold text-white mb-6 flex items-center justify-center">
-                  <span className="text-5xl mr-4">🔬</span>
+                  <button
+                    onClick={resetForm}
+                    className="text-5xl mr-4 hover:scale-125 transition-transform duration-300 cursor-pointer"
+                    title="Back to Home"
+                  >
+                    🔬
+                  </button>
                   ANALYSIS COMPLETE
                 </h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <div className="bg-gradient-to-br from-red-500/20 to-red-600/20 p-6 rounded-2xl border border-red-500/30 backdrop-blur-sm transform hover:scale-105 transition-all duration-300">
-                    <div className="text-5xl font-bold text-red-400 mb-2">{prediction.risk_probability}%</div>
+                    <div className="text-5xl font-bold text-red-400 mb-2">{parseFloat(prediction.risk_probability).toFixed(2)}%</div>
                     <div className="text-red-300">Risk Probability</div>
                   </div>
                   
@@ -532,7 +793,7 @@ function App() {
                   </div>
                   
                   <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 p-6 rounded-2xl border border-blue-500/30 backdrop-blur-sm transform hover:scale-105 transition-all duration-300">
-                    <div className="text-2xl font-semibold text-blue-400 mb-2">{prediction.confidence}%</div>
+                    <div className="text-2xl font-semibold text-blue-400 mb-2">{formatPercentage(prediction.confidence)}%</div>
                     <div className="text-blue-300">Confidence</div>
                   </div>
                 </div>
@@ -541,13 +802,44 @@ function App() {
                   <h3 className="font-semibold text-cyan-400 mb-3 text-xl">📋 Medical Recommendation:</h3>
                   <p className="text-gray-300 text-lg">{prediction.recommendation}</p>
                 </div>
-                
-                <button
-                  onClick={resetForm}
-                  className="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-2xl transform hover:scale-105 transition-all duration-300 hover:from-purple-600 hover:to-pink-600"
-                >
-                  🔄 New Analysis
-                </button>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                  {aiInsightStats.map((insight) => (
+                    <div key={insight.title} className="bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent"></div>
+                      <div className="relative">
+                        <p className="text-sm text-gray-300 mb-2 flex items-center gap-2">
+                          <span>{insight.badge}</span>
+                          {insight.title}
+                        </p>
+                        <p className="text-2xl font-semibold text-white mb-1">{insight.value}</p>
+                        <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">{insight.sub}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 justify-center mb-4">
+                  <button
+                    onClick={resetForm}
+                    className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-2xl font-semibold shadow-lg hover:shadow-pink-500/40 transition-all duration-300"
+                  >
+                    🔄 Run New Analysis
+                  </button>
+                  <button
+                    onClick={handleScrollToForm}
+                    className="flex-1 px-6 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-2xl font-semibold shadow-lg hover:shadow-cyan-500/40 transition-all duration-300"
+                  >
+                    ✏️ Adjust Inputs
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-1 px-6 py-4 bg-white/10 border border-white/20 text-white rounded-2xl font-semibold backdrop-blur hover:bg-white/20 transition-all duration-300"
+                    onClick={() => window.open('https://www.heart.org/en/healthy-living', '_blank')}
+                  >
+                    📘 Heart Health Guide
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -567,11 +859,11 @@ function App() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Left Panel - Information Display (Hidden on mobile, shows as popup instead) */}
               <div className="hidden lg:block bg-gradient-to-br from-gray-900/80 to-black/80 backdrop-blur-xl rounded-3xl border border-cyan-500/30 p-8 shadow-2xl shadow-cyan-500/10 sticky top-4 h-fit">
-                <div className={`text-center mb-6 bg-gradient-to-r ${fieldInfo[activeField].color} p-1 rounded-2xl`}>
+                <div className={`text-center mb-6 bg-gradient-to-r ${currentFieldInfo.color} p-1 rounded-2xl`}>
                   <div className="bg-gray-900 rounded-xl p-6">
-                    <div className="text-6xl mb-4 animate-bounce">{fieldInfo[activeField].icon}</div>
-                    <h2 className="text-3xl font-bold text-white mb-2">{fieldInfo[activeField].title}</h2>
-                    <p className="text-gray-300 text-lg">{fieldInfo[activeField].description}</p>
+                    <div className="text-6xl mb-4 animate-bounce">{currentFieldInfo.icon}</div>
+                    <h2 className="text-3xl font-bold text-white mb-2">{currentFieldInfo.title}</h2>
+                    <p className="text-gray-300 text-lg">{currentFieldInfo.description}</p>
                   </div>
                 </div>
 
@@ -580,27 +872,27 @@ function App() {
                     <h3 className="font-semibold text-green-400 mb-2 flex items-center">
                       <span className="mr-2">✅</span> Normal Range
                     </h3>
-                    <p className="text-green-300">{fieldInfo[activeField].normal}</p>
+                    <p className="text-green-300">{currentFieldInfo.normal}</p>
                   </div>
 
                   <div className="bg-gradient-to-r from-amber-500/20 to-amber-600/20 p-4 rounded-xl border border-amber-500/30">
                     <h3 className="font-semibold text-amber-400 mb-2 flex items-center">
                       <span className="mr-2">⚠️</span> Risk Factors
                     </h3>
-                    <p className="text-amber-300">{fieldInfo[activeField].risk}</p>
+                    <p className="text-amber-300">{currentFieldInfo.risk}</p>
                   </div>
 
                   <div className="bg-gradient-to-r from-blue-500/20 to-blue-600/20 p-4 rounded-xl border border-blue-500/30">
                     <h3 className="font-semibold text-blue-400 mb-2 flex items-center">
                       <span className="mr-2">🔬</span> Clinical Details
                     </h3>
-                    <p className="text-blue-300">{fieldInfo[activeField].detail}</p>
+                    <p className="text-blue-300">{currentFieldInfo.detail}</p>
                   </div>
                 </div>
               </div>
 
               {/* Right Panel - Form */}
-              <div className="bg-gradient-to-br from-gray-900/80 to-black/80 backdrop-blur-xl rounded-3xl border border-purple-500/30 p-8 shadow-2xl shadow-purple-500/10 relative">
+              <div ref={formRef} className="bg-gradient-to-br from-gray-900/80 to-black/80 backdrop-blur-xl rounded-3xl border border-purple-500/30 p-8 shadow-2xl shadow-purple-500/10 relative">
                 {/* Mobile Info Toggle Button */}
                 <button
                   onClick={() => setShowMobileInfo(!showMobileInfo)}
@@ -634,39 +926,37 @@ function App() {
                   </div>
                   <div className="mt-2 text-xs text-gray-400 text-center">
                     {completionPercentage === 100 ? "🎉 All fields completed! Ready to predict!" : 
-                     currentStep < fieldOrder.length ? `Current: ${fieldInfo[fieldOrder[currentStep]].title}` : ""}
+                     currentFieldInfo ? `Current: ${currentFieldInfo.title}` : ""}
                   </div>
                 </div>
 
                 <form onSubmit={submitPrediction} className="space-y-6" onClick={() => setShowMobileInfo(false)}>
-                  {(() => {
-                    const currentFieldData = getCurrentField();
-                    const field = currentFieldData.field;
-                    const index = currentFieldData.index;
-                    
-                    return (
+                  {currentField && (
                       <div 
-                        key={field} 
-                        className="group animate-slideInUp transition-all duration-700 transform"
-                        onClick={(e) => e.stopPropagation()}
+                        key={currentField} 
+                        className="group animate-slideInUp transition-all duration-700 transform cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          focusActiveField();
+                        }}
                       >
                         <label className="flex text-sm font-semibold text-gray-300 mb-3 items-center group-hover:text-cyan-400 transition-colors">
-                          <span className="text-2xl mr-3">{fieldInfo[field].icon}</span>
+                          <span className="text-2xl mr-3">{fieldInfo[currentField].icon}</span>
                           <span className="flex items-center">
                             <span className="bg-gradient-to-r from-cyan-500 to-blue-500 text-black px-3 py-1 rounded-full text-xs font-bold mr-3 shadow-lg">
-                              {index + 1} / {fieldOrder.length}
+                              {currentFieldIndex + 1} / {fieldOrder.length}
                             </span>
-                            {fieldInfo[field].title}
+                            {fieldInfo[currentField].title}
                           </span>
                           <span className="text-red-400 ml-2">*</span>
-                          {completedFields.has(field) && (
+                          {completedFields.has(currentField) && (
                             <span className="ml-auto text-green-400 animate-pulse">✅</span>
                           )}
                         </label>
-                        {renderField(field)}
+                        {renderField(currentField)}
                         
                         {/* Stylish completion prompt with Next button */}
-                        {!completedFields.has(field) && (
+                        {!completedFields.has(currentField) && (
                           <div className="mt-4 flex items-center justify-center">
                             <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 backdrop-blur-sm rounded-xl p-3 border border-cyan-500/30 flex items-center space-x-3">
                               <div className="flex space-x-1">
@@ -681,12 +971,12 @@ function App() {
                         )}
 
                         {/* Next/Previous buttons when field is completed */}
-                        {completedFields.has(field) && (
+                        {completedFields.has(currentField) && (
                           <div className="mt-6 flex justify-between items-center">
-                            {index > 0 && (
+                            {currentFieldIndex > 0 && (
                               <button
                                 type="button"
-                                onClick={() => navigateToStep(index - 1)}
+                                onClick={() => navigateToStep(currentFieldIndex - 1)}
                                 className="bg-gradient-to-r from-gray-600 to-gray-700 text-white py-3 px-6 rounded-xl font-semibold hover:from-gray-500 hover:to-gray-600 transition-all duration-300 flex items-center space-x-2 shadow-lg transform hover:scale-105"
                               >
                                 <span>⬅️</span>
@@ -694,10 +984,10 @@ function App() {
                               </button>
                             )}
 
-                            {index < fieldOrder.length - 1 ? (
+                            {currentFieldIndex < fieldOrder.length - 1 ? (
                               <button
                                 type="button"
-                                onClick={() => navigateToStep(index + 1)}
+                                onClick={() => navigateToStep(currentFieldIndex + 1)}
                                 className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white py-3 px-8 rounded-xl font-bold hover:from-cyan-400 hover:to-blue-400 transition-all duration-300 flex items-center space-x-3 shadow-lg transform hover:scale-105 ml-auto"
                               >
                                 <span>Next Field</span>
@@ -712,8 +1002,7 @@ function App() {
                           </div>
                         )}
                       </div>
-                    );
-                  })()}
+                    )}
 
                   {/* Progress status indicator */}
                   {completionPercentage < 100 && (
@@ -777,31 +1066,12 @@ function App() {
             </div>
 
             {/* Watermark section */}
-            <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 backdrop-blur-sm rounded-xl border border-cyan-500/20 p-4">
-              <div className="flex flex-col md:flex-row items-center justify-between space-y-2 md:space-y-0">
-                {/* Left side - App branding */}
-                <div className="flex items-center space-x-3">
-                  <div className="text-2xl animate-pulse">❤️</div>
-                  <div>
-                    <h3 className="text-cyan-400 font-bold text-lg">Heart Disease Predictor</h3>
-                    <p className="text-gray-400 text-xs">Advanced ML-powered health analysis</p>
-                  </div>
-                </div>
-
-                {/* Center - Tech stack badges */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full text-xs border border-blue-500/30">
-                    React
-                  </span>
-                  <span className="bg-green-500/20 text-green-300 px-2 py-1 rounded-full text-xs border border-green-500/30">
-                    FastAPI
-                  </span>
-                  <span className="bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full text-xs border border-purple-500/30">
-                    XGBoost
-                  </span>
-                  <span className="bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded-full text-xs border border-cyan-500/30">
-                    Tailwind
-                  </span>
+            <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 backdrop-blur-sm rounded-xl border border-cyan-500/20 p-6">
+              <div className="flex flex-col items-center text-center space-y-3">
+                <div className="text-3xl animate-pulse">❤️</div>
+                <div>
+                  <h3 className="text-cyan-200 font-bold text-2xl tracking-wide">Heart Disease Predictor</h3>
+                  <p className="text-gray-300 text-sm mt-1">Advanced ML-powered health analysis</p>
                 </div>
               </div>
             </div>
@@ -816,6 +1086,14 @@ function App() {
                 </span>
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={() => window.open('https://github.com/hemanthsankar0007', '_blank')}
+              className="w-full text-center text-blue-300 font-semibold tracking-wide hover:text-blue-200 transition-colors"
+            >
+              2025 © Developed by Hemanth Sankar
+            </button>
           </div>
         </div>
       </div>
