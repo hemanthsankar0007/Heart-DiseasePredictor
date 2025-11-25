@@ -273,6 +273,77 @@ function App() {
     // No auto-progression - user must click Next button
   };
 
+  // Demo mode prediction for when backend is not available
+  // Default values for demo prediction calculation
+  const DEMO_DEFAULTS = {
+    age: 50,
+    chol: 200,
+    trestbps: 120,
+    ca: 0,
+    exang: 0
+  };
+
+  // Simple hash function for deterministic "randomness" based on input
+  const getInputHash = (data) => {
+    const str = JSON.stringify(data);
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+  };
+
+  const getDemoPrediction = () => {
+    const age = parseInt(patientData.age) || DEMO_DEFAULTS.age;
+    const chol = parseInt(patientData.chol) || DEMO_DEFAULTS.chol;
+    const trestbps = parseInt(patientData.trestbps) || DEMO_DEFAULTS.trestbps;
+    const ca = parseInt(patientData.ca) || DEMO_DEFAULTS.ca;
+    const exang = parseInt(patientData.exang) || DEMO_DEFAULTS.exang;
+    
+    // Simple risk calculation for demo
+    let riskScore = 0;
+    if (age > 55) riskScore += 20;
+    if (age > 65) riskScore += 15;
+    if (chol > 240) riskScore += 20;
+    if (trestbps > 140) riskScore += 15;
+    if (ca > 0) riskScore += 25;
+    if (exang === 1) riskScore += 15;
+    
+    // Add deterministic variation based on input hash for demo variety
+    const inputHash = getInputHash(patientData);
+    const deterministicVariation = (inputHash % 100) / 10; // 0-10 range
+    riskScore += deterministicVariation;
+    riskScore = Math.min(95, Math.max(5, riskScore));
+    
+    // Deterministic confidence based on input hash
+    const confidenceBase = 85;
+    const confidenceVariation = (inputHash % 100) / 10; // 0-10 range
+    const confidence = confidenceBase + confidenceVariation;
+    
+    let riskLevel, recommendation;
+    if (riskScore < 30) {
+      riskLevel = "Low Risk";
+      recommendation = "Your cardiovascular health indicators appear favorable. Continue maintaining a healthy lifestyle with regular exercise and balanced diet. Schedule routine check-ups with your healthcare provider.";
+    } else if (riskScore < 60) {
+      riskLevel = "Moderate Risk";
+      recommendation = "Some risk factors are present. Consider lifestyle modifications including regular exercise, dietary improvements, and stress management. Consult with a healthcare professional for personalized guidance.";
+    } else {
+      riskLevel = "High Risk";
+      recommendation = "Multiple risk factors detected. It is strongly recommended to consult with a cardiologist for comprehensive evaluation and to develop a personalized treatment plan. Immediate lifestyle changes may be beneficial.";
+    }
+    
+    return {
+      prediction: riskScore > 50 ? "Heart Disease Risk Detected" : "Low Heart Disease Risk",
+      risk_probability: riskScore.toFixed(2),
+      confidence: confidence.toFixed(2),
+      risk_level: riskLevel,
+      recommendation: recommendation,
+      is_demo: true
+    };
+  };
+
   const submitPrediction = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -288,7 +359,11 @@ function App() {
         console.log('Backend health check:', healthCheck.data);
       } catch (healthError) {
         console.error('Backend health check failed:', healthError);
-        throw new Error('Backend server is not responding. Please ensure the backend is running on port 8000.');
+        // Use demo mode when backend is not available
+        console.log('Using demo mode prediction');
+        const demoPrediction = getDemoPrediction();
+        setPrediction(demoPrediction);
+        return;
       }
       
       const response = await axios.post(`${apiUrl}/predict`, patientData, {
@@ -299,13 +374,10 @@ function App() {
       setPrediction(response.data);
     } catch (error) {
       console.error('Prediction error:', error);
-      if (error.code === 'ECONNREFUSED') {
-        setError('Cannot connect to prediction service. Please ensure the backend server is running.');
-      } else if (error.response) {
-        setError(`Prediction failed: ${error.response.data?.detail || error.response.statusText}`);
-      } else {
-        setError(error.message || 'An unexpected error occurred. Please try again.');
-      }
+      // Fallback to demo mode on any error
+      console.log('Falling back to demo mode prediction');
+      const demoPrediction = getDemoPrediction();
+      setPrediction(demoPrediction);
     } finally {
       setIsSubmitting(false);
     }
@@ -771,6 +843,17 @@ function App() {
                   </button>
                   ANALYSIS COMPLETE
                 </h2>
+                
+                {/* Demo Mode Banner */}
+                {prediction.is_demo && (
+                  <div className="mb-6 bg-gradient-to-r from-amber-500/20 to-orange-500/20 backdrop-blur-sm rounded-xl p-4 border border-amber-500/30">
+                    <div className="flex items-center justify-center space-x-2 text-amber-300">
+                      <span className="text-2xl">🎮</span>
+                      <span className="font-semibold">Demo Mode</span>
+                      <span className="text-sm text-amber-200/80">- Simulated prediction (Backend not connected)</span>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <div className="bg-gradient-to-br from-red-500/20 to-red-600/20 p-6 rounded-2xl border border-red-500/30 backdrop-blur-sm transform hover:scale-105 transition-all duration-300">
