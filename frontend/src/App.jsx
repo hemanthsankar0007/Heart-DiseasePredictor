@@ -274,12 +274,33 @@ function App() {
   };
 
   // Demo mode prediction for when backend is not available
+  // Default values for demo prediction calculation
+  const DEMO_DEFAULTS = {
+    age: 50,
+    chol: 200,
+    trestbps: 120,
+    ca: 0,
+    exang: 0
+  };
+
+  // Simple hash function for deterministic "randomness" based on input
+  const getInputHash = (data) => {
+    const str = JSON.stringify(data);
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+  };
+
   const getDemoPrediction = () => {
-    const age = parseInt(patientData.age) || 50;
-    const chol = parseInt(patientData.chol) || 200;
-    const trestbps = parseInt(patientData.trestbps) || 120;
-    const ca = parseInt(patientData.ca) || 0;
-    const exang = parseInt(patientData.exang) || 0;
+    const age = parseInt(patientData.age) || DEMO_DEFAULTS.age;
+    const chol = parseInt(patientData.chol) || DEMO_DEFAULTS.chol;
+    const trestbps = parseInt(patientData.trestbps) || DEMO_DEFAULTS.trestbps;
+    const ca = parseInt(patientData.ca) || DEMO_DEFAULTS.ca;
+    const exang = parseInt(patientData.exang) || DEMO_DEFAULTS.exang;
     
     // Simple risk calculation for demo
     let riskScore = 0;
@@ -290,9 +311,16 @@ function App() {
     if (ca > 0) riskScore += 25;
     if (exang === 1) riskScore += 15;
     
-    // Add some randomness for demo variety
-    riskScore += Math.random() * 10;
+    // Add deterministic variation based on input hash for demo variety
+    const inputHash = getInputHash(patientData);
+    const deterministicVariation = (inputHash % 100) / 10; // 0-10 range
+    riskScore += deterministicVariation;
     riskScore = Math.min(95, Math.max(5, riskScore));
+    
+    // Deterministic confidence based on input hash
+    const confidenceBase = 85;
+    const confidenceVariation = (inputHash % 100) / 10; // 0-10 range
+    const confidence = confidenceBase + confidenceVariation;
     
     let riskLevel, recommendation;
     if (riskScore < 30) {
@@ -309,7 +337,7 @@ function App() {
     return {
       prediction: riskScore > 50 ? "Heart Disease Risk Detected" : "Low Heart Disease Risk",
       risk_probability: riskScore.toFixed(2),
-      confidence: (85 + Math.random() * 10).toFixed(2),
+      confidence: confidence.toFixed(2),
       risk_level: riskLevel,
       recommendation: recommendation,
       is_demo: true
