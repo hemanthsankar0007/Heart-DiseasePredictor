@@ -12,13 +12,20 @@ app = FastAPI(title="Heart Disease Prediction API", version="1.0.0")
 
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 
+# Build allowed origins list
+allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:3000",
+]
+
+# Add FRONTEND_URL if it exists
+if FRONTEND_URL:
+    allowed_origins.append(FRONTEND_URL)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        FRONTEND_URL
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

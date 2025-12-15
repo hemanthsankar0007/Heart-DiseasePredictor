@@ -280,7 +280,7 @@ function App() {
     setError(null);
     
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const apiUrl = import.meta.env.VITE_API_URL || API_URL;
       console.log('Making request to:', `${apiUrl}/predict`);
       
       // First test if backend is reachable
@@ -289,7 +289,7 @@ function App() {
         console.log('Backend health check:', healthCheck.data);
       } catch (healthError) {
         console.error('Backend health check failed:', healthError);
-        throw new Error('Backend server is not responding. Please ensure the backend is running on port 8000.');
+        throw new Error('Backend server is not responding. Please ensure the backend is running.');
       }
       
       const response = await axios.post(`${apiUrl}/predict`, patientData, {
