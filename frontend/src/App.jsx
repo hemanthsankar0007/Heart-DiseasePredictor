@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 
 function App() {
+  const API_URL = "https://heart-diseasepredictor.onrender.com";
   const [patientData, setPatientData] = useState({
     age: "", sex: "", cp: "", trestbps: "", chol: "", fbs: "",
     restecg: "", thalch: "", exang: "", oldpeak: "", slope: "", ca: "", thal: ""
