@@ -1,24 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 
-/* ===================== API CONFIG (FIXED) ===================== */
-const API_BASE = import.meta.env.VITE_API_URL;
-
-if (!API_BASE) {
-  console.error("❌ VITE_API_URL is not defined");
-}
-
-const api = axios.create({
-  baseURL: API_BASE,
-  headers: { "Content-Type": "application/json" },
-  timeout: 30000,
-});
-/* ============================================================= */
-
 function App() {
   const [patientData, setPatientData] = useState({
-    age: "", sex: "", cp: "", trestbps: "", chol: "", fbs: "",
-    restecg: "", thalch: "", exang: "", oldpeak: "", slope: "", ca: "", thal: ""
+    age: "",
+    sex: "",
+    cp: "",
+    trestbps: "",
+    chol: "",
+    fbs: "",
+    restecg: "",
+    thalch: "",
+    exang: "",
+    oldpeak: "",
+    slope: "",
+    ca: "",
+    thal: ""
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,6 +36,9 @@ function App() {
 
   const totalFields = fieldOrder.length;
 
+  const completionPercentage =
+    (completedFields.size / totalFields) * 100;
+
   useEffect(() => {
     const completed = new Set();
     Object.entries(patientData).forEach(([k, v]) => {
@@ -47,27 +47,43 @@ function App() {
     setCompletedFields(completed);
   }, [patientData]);
 
-  const completionPercentage = (completedFields.size / totalFields) * 100;
+  const setFieldValue = (name, value) => {
+    setPatientData(prev => ({ ...prev, [name]: value }));
+    setActiveField(name);
+    setError(null);
+  };
 
-  /* ===================== 🔥 FIXED FUNCTION 🔥 ===================== */
-  const submitPrediction = async (e) => {
+  const updateField = e => {
+    const { name, value } = e.target;
+    setFieldValue(name, value);
+  };
+
+  const navigateToStep = index => {
+    if (index >= 0 && index < fieldOrder.length) {
+      setCurrentStep(index);
+      setActiveField(fieldOrder[index]);
+    }
+  };
+
+  const submitPrediction = async e => {
     e.preventDefault();
     setIsSubmitting(true);
     setError(null);
 
+    const apiUrl =
+      import.meta.env.VITE_API_URL || "http://localhost:8000";
+
     try {
-      console.log("➡️ Calling backend:", API_BASE);
+      await axios.get(`${apiUrl}/health`, { timeout: 5000 });
 
-      // health check
-      await api.get("/health");
+      const res = await axios.post(
+        `${apiUrl}/predict`,
+        patientData,
+        { headers: { "Content-Type": "application/json" } }
+      );
 
-      // prediction
-      const res = await api.post("/predict", patientData);
       setPrediction(res.data);
-
     } catch (err) {
-      console.error("❌ Prediction error:", err);
-
       if (err.response) {
         setError(err.response.data?.detail || "Prediction failed");
       } else {
@@ -77,12 +93,12 @@ function App() {
       setIsSubmitting(false);
     }
   };
-  /* =============================================================== */
 
   const resetForm = () => {
     setPatientData({
-      age: "", sex: "", cp: "", trestbps: "", chol: "", fbs: "",
-      restecg: "", thalch: "", exang: "", oldpeak: "", slope: "", ca: "", thal: ""
+      age:"",sex:"",cp:"",trestbps:"",chol:"",
+      fbs:"",restecg:"",thalch:"",
+      exang:"",oldpeak:"",slope:"",ca:"",thal:""
     });
     setPrediction(null);
     setError(null);
@@ -91,63 +107,75 @@ function App() {
     setCurrentStep(0);
   };
 
-  /* ===================== UI (UNCHANGED) ===================== */
+  const currentField = fieldOrder[currentStep];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white">
-      <div className="max-w-3xl mx-auto p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-6">
+      <h1 className="text-4xl font-bold text-center mb-8">
+        ❤️ Cardiac Risk Analyzer
+      </h1>
 
-        <h1 className="text-4xl font-bold text-center mb-8">
-          ❤️ Cardiac Risk Analyzer
-        </h1>
+      <form
+        ref={formRef}
+        onSubmit={submitPrediction}
+        className="max-w-xl mx-auto space-y-4"
+      >
+        <input
+          ref={activeFieldRef}
+          name={currentField}
+          value={patientData[currentField]}
+          onChange={updateField}
+          placeholder={currentField}
+          className="w-full p-4 rounded bg-gray-900 border border-gray-700"
+          required
+        />
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-900/40 border border-red-500 rounded">
-            {error}
-          </div>
-        )}
-
-        {prediction && (
-          <div className="mb-6 p-6 bg-black/60 border border-cyan-500 rounded">
-            <h2 className="text-2xl mb-4">Analysis Result</h2>
-            <pre className="text-sm">
-              {JSON.stringify(prediction, null, 2)}
-            </pre>
+        <div className="flex justify-between">
+          {currentStep > 0 && (
             <button
-              onClick={resetForm}
-              className="mt-4 px-4 py-2 bg-cyan-500 text-black rounded"
+              type="button"
+              onClick={() => navigateToStep(currentStep - 1)}
+              className="px-4 py-2 bg-gray-700 rounded"
             >
-              New Analysis
+              ⬅ Prev
             </button>
-          </div>
-        )}
+          )}
 
-        {!prediction && (
-          <form ref={formRef} onSubmit={submitPrediction} className="space-y-4">
-            {fieldOrder.map((field) => (
-              <input
-                key={field}
-                type="text"
-                name={field}
-                value={patientData[field]}
-                onChange={(e) =>
-                  setPatientData({ ...patientData, [field]: e.target.value })
-                }
-                placeholder={field}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded"
-                required
-              />
-            ))}
-
+          {currentStep < fieldOrder.length - 1 ? (
             <button
-              type="submit"
-              disabled={completionPercentage < 100 || isSubmitting}
-              className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-black font-bold rounded disabled:opacity-50"
+              type="button"
+              onClick={() => navigateToStep(currentStep + 1)}
+              className="px-4 py-2 bg-cyan-500 text-black rounded ml-auto"
             >
-              {isSubmitting ? "ANALYZING..." : "INITIATE ANALYSIS"}
+              Next ➡
             </button>
-          </form>
-        )}
-      </div>
+          ) : (
+            <span className="ml-auto text-green-400">
+              ✅ All fields done
+            </span>
+          )}
+        </div>
+
+        <button
+          type="submit"
+          disabled={completionPercentage < 100 || isSubmitting}
+          className="w-full py-3 bg-gradient-to-r from-cyan-500 to-purple-500 rounded font-bold text-xl"
+        >
+          {isSubmitting ? "ANALYZING..." : "INITIATE ANALYSIS"}
+        </button>
+      </form>
+
+      {error && (
+        <p className="text-red-400 text-center mt-4">
+          ⚠️ {error}
+        </p>
+      )}
+
+      {prediction && (
+        <pre className="max-w-xl mx-auto mt-6 p-4 bg-black/40 rounded">
+{JSON.stringify(prediction, null, 2)}
+        </pre>
+      )}
     </div>
   );
 }
