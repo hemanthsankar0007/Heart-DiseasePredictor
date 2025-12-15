@@ -1,83 +1,109 @@
-import { useState, useEffect, useRef } from "react";
-import axios from "axios";
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import pickle
+import numpy as np
+import os
+from dotenv import load_dotenv
 
-const API_BASE = import.meta.env.VITE_API_URL;
+load_dotenv()
 
-if (!API_BASE) {
-  console.error("VITE_API_URL is not defined");
-}
+app = FastAPI(title="Heart Disease Prediction API", version="1.0.0")
 
-const api = axios.create({
-  baseURL: API_BASE,
-  headers: { "Content-Type": "application/json" },
-  timeout: 30000,
-});
+FRONTEND_URL = os.getenv("FRONTEND_URL")
 
-function App() {
-  const [patientData, setPatientData] = useState({
-    age: "", sex: "", cp: "", trestbps: "", chol: "", fbs: "",
-    restecg: "", thalch: "", exang: "", oldpeak: "", slope: "", ca: "", thal: ""
-  });
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        FRONTEND_URL
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [prediction, setPrediction] = useState(null);
-  const [error, setError] = useState(null);
+model = None
+try:
+    with open("xgb_heart_model.pkl", "rb") as f:
+        model = pickle.load(f)
+except Exception as e:
+    print("Model load failed:", e)
 
-  const submitPrediction = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setError(null);
 
-    try {
-      await api.get("/health");
+class PatientData(BaseModel):
+    age: str
+    sex: str
+    cp: str
+    trestbps: str
+    chol: str
+    fbs: str
+    restecg: str
+    thalch: str
+    exang: str
+    oldpeak: str
+    slope: str
+    ca: str
+    thal: str
 
-      const res = await api.post("/predict", patientData);
-      setPrediction(res.data);
-    } catch (err) {
-      if (err.response) {
-        setError(err.response.data?.detail || "Prediction failed");
-      } else {
-        setError("Backend not reachable");
-      }
-    } finally {
-      setIsSubmitting(false);
+
+class PredictionResponse(BaseModel):
+    risk_probability: float
+    risk_level: str
+    recommendation: str
+    confidence: float
+
+
+def preprocess_input(data: PatientData) -> np.ndarray:
+    return np.array([[
+        float(data.age),
+        float(data.sex),
+        float(data.cp),
+        float(data.trestbps),
+        float(data.chol),
+        float(data.fbs),
+        float(data.restecg),
+        float(data.thalch),
+        float(data.exang),
+        float(data.oldpeak),
+        float(data.slope),
+        float(data.ca),
+        float(data.thal)
+    ]])
+
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "model_loaded": model is not None}
+
+
+@app.post("/predict", response_model=PredictionResponse)
+async def predict(patient: PatientData):
+    if model is None:
+        raise HTTPException(status_code=500, detail="Model not loaded")
+
+    features = preprocess_input(patient)
+    probability = model.predict_proba(features)[0][1]
+
+    if probability < 0.3:
+        risk = "Low Risk"
+        rec = "Maintain healthy habits and regular checkups."
+    elif probability < 0.7:
+        risk = "Moderate Risk"
+        rec = "Consult a cardiologist and monitor lifestyle."
+    else:
+        risk = "High Risk"
+        rec = "Immediate medical attention recommended."
+
+    return {
+        "risk_probability": round(probability * 100, 2),
+        "risk_level": risk,
+        "recommendation": rec,
+        "confidence": round(max(probability, 1 - probability) * 100, 2)
     }
-  };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-black text-white">
-      <form onSubmit={submitPrediction} className="space-y-4 w-full max-w-md">
-        {Object.keys(patientData).map((key) => (
-          <input
-            key={key}
-            type="text"
-            placeholder={key}
-            value={patientData[key]}
-            onChange={(e) =>
-              setPatientData({ ...patientData, [key]: e.target.value })
-            }
-            className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
-            required
-          />
-        ))}
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full p-3 bg-cyan-500 text-black font-bold rounded"
-        >
-          {isSubmitting ? "Analyzing..." : "INITIATE ANALYSIS"}
-        </button>
-
-        {error && <p className="text-red-400">{error}</p>}
-        {prediction && (
-          <pre className="bg-gray-900 p-4 rounded">
-            {JSON.stringify(prediction, null, 2)}
-          </pre>
-        )}
-      </form>
-    </div>
-  );
-}
-
-export default App;
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
